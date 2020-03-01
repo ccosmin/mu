@@ -1,6 +1,6 @@
 # tool marcros
 CC := g++
-CCFLAG :=
+CCFLAG := -std=c++11
 DBGFLAG := -g
 CCOBJFLAG := $(CCFLAG) -c
 
