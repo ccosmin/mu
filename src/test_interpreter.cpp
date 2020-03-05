@@ -81,3 +81,9 @@ TEST_CASE("Define repeat and apply", "[interpreter]")
   i.Eval("(define twice (lambda (x) (* 2 x)))");
   REQUIRE(Eval(i, "((repeat twice) 5)") == "20");
 }
+
+TEST_CASE("Parse some string", "[strings]")
+{
+  Interpreter i;
+  REQUIRE(Eval(i, "(define myStr \"some string\")") == "some string");
+}

@@ -13,7 +13,8 @@ enum CellType
   Number, 
   List, 
   Proc, 
-  Lambda 
+  Lambda,
+  String
 };
 
 struct Env; // forward declaration; Cell and Env reference each other
@@ -95,7 +96,7 @@ typedef std::vector<Cell> Cells;
 typedef Cells::const_iterator Cellit;
 
 const Cell FalseSym(Symbol, "#f");
-const Cell TrueSym(Symbol, "#t"); // anything that isn't false_sym is true
+const Cell TrueSym(Symbol, "#t");
 const Cell Nil(Symbol, "nil");
 
 }

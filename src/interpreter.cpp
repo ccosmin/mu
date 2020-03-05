@@ -4,6 +4,7 @@
 #include <vector>
 #include <list>
 #include <map>
+#include <ctype.h>
 
 #include "catch.hpp"
 #include "cell.hpp"
@@ -80,33 +81,33 @@ Cell proc_car(const Cells & c)    { return c[0].GetList()[0]; }
 
 Cell proc_cdr(const Cells & c)
 {
-    if (c[0].GetList().size() < 2)
-        return Nil;
-    Cell result(c[0]);
-    result.GetList().erase(result.GetList().begin());
-    return result;
+  if (c[0].GetList().size() < 2)
+    return Nil;
+  Cell result(c[0]);
+  result.GetList().erase(result.GetList().begin());
+  return result;
 }
 
 Cell proc_append(const Cells & c)
 {
-    Cell result(List);
-    result.GetList() = c[0].GetList();
-    for (Cellit i = c[1].GetList().begin(); i != c[1].GetList().end(); ++i) result.GetList().push_back(*i);
-    return result;
+  Cell result(List);
+  result.GetList() = c[0].GetList();
+  for (Cellit i = c[1].GetList().begin(); i != c[1].GetList().end(); ++i) result.GetList().push_back(*i);
+  return result;
 }
 
 Cell proc_cons(const Cells & c)
 {
-    Cell result(List);
-    result.GetList().push_back(c[0]);
-    for (Cellit i = c[1].GetList().begin(); i != c[1].GetList().end(); ++i) result.GetList().push_back(*i);
-    return result;
+  Cell result(List);
+  result.GetList().push_back(c[0]);
+  for (Cellit i = c[1].GetList().begin(); i != c[1].GetList().end(); ++i) result.GetList().push_back(*i);
+  return result;
 }
 
 Cell proc_list(const Cells & c)
 {
-    Cell result(List); result.GetList() = c;
-    return result;
+  Cell result(List); result.GetList() = c;
+  return result;
 }
 
 // define the bare minimum set of primintives necessary to pass the unit tests
@@ -130,6 +131,8 @@ Cell eval(Cell x, Env * env)
     if (x.GetType() == Symbol)
         return env->find(x.GetVal())[x.GetVal()];
     if (x.GetType() == Number)
+        return x;
+    if (x.GetType() == String)
         return x;
     if (x.GetList().empty())
         return Nil;
@@ -181,56 +184,109 @@ Cell eval(Cell x, Env * env)
 
 ////////////////////// parse, read and user interaction
 
-// convert given string to list of tokens
-std::list<std::string> tokenize(const std::string & str)
+void SkipWS(const char** s)
 {
-    std::list<std::string> tokens;
-    const char * s = str.c_str();
-    while (*s) {
-        while (*s == ' ')
-            ++s;
-        if (*s == '(' || *s == ')')
-            tokens.push_back(*s++ == '(' ? "(" : ")");
-        else {
-            const char * t = s;
-            while (*t && *t != ' ' && *t != '(' && *t != ')')
-                ++t;
-            tokens.push_back(std::string(s, t));
-            s = t;
-        }
-    }
-    return tokens;
+  while(isspace(**s))
+    ++*s;
 }
 
-// numbers become Numbers; every other token is a Symbol
-Cell atom(const std::string & token)
+enum TokenKind
 {
-    if (isdig(token[0]) || (token[0] == '-' && isdig(token[1])))
-        return Cell(Number, token);
-    return Cell(Symbol, token);
+  TokenKind_Par,
+  TokenKind_Symbol,
+  TokenKind_String,
+  TokenKind_Number
+};
+
+struct Token
+{
+  Token(TokenKind kind, const std::string& token)
+  : m_kind(kind), m_token(token)
+  {
+  }
+
+  TokenKind m_kind;
+  std::string m_token;
+};
+
+typedef std::vector<Token> Tokens;
+
+// convert given string to list of tokens
+Tokens Tokenize(const std::string& str)
+{
+  Tokens tokens;
+  const char * s = str.c_str();
+  std::string tmpStr;
+  bool inStr = false;
+  while (*s) 
+  {
+    if (inStr && *s != '"')
+    {
+      tmpStr += *s++;
+      continue;
+    }
+    SkipWS(&s);
+    if (!*s)
+      return tokens;
+    if (*s == '"')
+    {
+      if (inStr)
+      {
+        s++;
+        tokens.push_back(Token(TokenKind_String, tmpStr));
+        tmpStr.clear();
+        inStr = false;
+      }
+      else
+      {
+        inStr = true;
+        ++s;
+      }
+      continue;
+    }
+    if (*s == '(' || *s == ')')
+    {
+      tokens.push_back(Token(TokenKind_Par, std::string(1, *s++)));
+      continue;
+    }
+    const char * t = s;
+    while (*t && *t != ' ' && *t != '(' && *t != ')' && *t != '"')
+      ++t;
+    std::string tmp(s, t);
+    if (isdig(tmp[0]) || (tmp[0] == '-' && isdig(tmp[1])))
+      tokens.push_back(Token(TokenKind_Number, tmp));
+    else
+      tokens.push_back(Token(TokenKind_Symbol, tmp));
+    s = t;
+  }
+  return tokens;
 }
 
 // return the Lisp expression in the given tokens
-Cell read_from(std::list<std::string> & tokens)
+Cell ReadFrom(Tokens& tokens)
 {
-    const std::string token(tokens.front());
-    tokens.pop_front();
-    if (token == "(") {
-        Cell c(List);
-        while (tokens.front() != ")")
-            c.GetList().push_back(read_from(tokens));
-        tokens.pop_front();
-        return c;
-    }
-    else
-        return atom(token);
+  const Token token(tokens.front());
+  tokens.erase(tokens.begin());
+  if (token.m_kind == TokenKind_Par && token.m_token == "(") {
+    Cell c(List);
+    while (tokens.front().m_kind != TokenKind_Par || tokens.front().m_token != ")")
+      c.GetList().push_back(ReadFrom(tokens));
+    tokens.erase(tokens.begin());
+    return c;
+  }
+  else if (token.m_kind == TokenKind_Number)
+    return Cell(Number, token.m_token);
+  else if (token.m_kind == TokenKind_String)
+    return Cell(String, token.m_token);
+  else
+    return Cell(Symbol, token.m_token);
 }
 
 // return the Lisp expression represented by the given string
 Cell read(const std::string & s)
 {
-    std::list<std::string> tokens(tokenize(s));
-    return read_from(tokens);
+  Tokens tokens = Tokenize(s);
+  return ReadFrom(tokens);
 }
 
 // convert given Cell to a Lisp-readable string
