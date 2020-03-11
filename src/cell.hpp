@@ -14,7 +14,8 @@ enum CellType
   List, 
   Proc, 
   Lambda,
-  String
+  String,
+  Boolean
 };
 
 struct Env; // forward declaration; Cell and Env reference each other
@@ -37,6 +38,11 @@ public:
   {
   }
 
+  Cell(bool boolVal)
+  : m_type(Boolean), m_boolVal(boolVal)
+  {
+  }
+
   Cell(ProcType proc) 
   : m_type(Proc), m_proc(proc), m_env(nullptr) 
   {
@@ -45,6 +51,16 @@ public:
   std::string GetVal() const
   {
     return m_val;
+  }
+
+  bool GetBoolVal() const
+  {
+    return m_boolVal;
+  }
+
+  void SetBoolVal(bool boolVal)
+  {
+    m_boolVal = boolVal;
   }
 
   CellType GetType() const
@@ -87,6 +103,7 @@ public:
 private:
   CellType m_type;
   std::string m_val;
+  bool m_boolVal;
   std::vector<Cell> m_list;
   ProcType m_proc;
   Env* m_env;
@@ -95,8 +112,15 @@ private:
 typedef std::vector<Cell> Cells;
 typedef Cells::const_iterator Cellit;
 
-const Cell FalseSym(Symbol, "#f");
-const Cell TrueSym(Symbol, "#t");
+inline Cell MakeBool(bool val) 
+{
+  Cell c(Boolean);
+  c.SetBoolVal(val);
+  return c;
+}
+
+const Cell FalseBool = MakeBool(false);
+const Cell TrueBool = MakeBool(true);
 const Cell Nil(Symbol, "nil");
 
 }

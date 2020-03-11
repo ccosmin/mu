@@ -62,6 +62,10 @@ all: $(TARGET)
 test: obj/cell.o obj/env.o obj/interpreter.o obj/test_interpreter.o
 	$(CC) $(CCFLAG) -o $@ $?
 
+.PHONY: main
+main: obj/cell.o obj/env.o obj/interpreter.o obj/main.o
+	$(CC) $(CCFLAG) -o $@ $?
+
 .PHONY: debug
 debug: $(TARGET_DEBUG)
 

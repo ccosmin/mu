@@ -53,8 +53,8 @@ Cell proc_greater(const Cells & c)
     long n(atol(c[0].GetVal().c_str()));
     for (Cellit i = c.begin()+1; i != c.end(); ++i)
         if (n <= atol(i->GetVal().c_str()))
-            return FalseSym;
-    return TrueSym;
+            return FalseBool;
+    return TrueBool;
 }
 
 Cell proc_less(const Cells & c)
@@ -62,8 +62,8 @@ Cell proc_less(const Cells & c)
     long n(atol(c[0].GetVal().c_str()));
     for (Cellit i = c.begin()+1; i != c.end(); ++i)
         if (n >= atol(i->GetVal().c_str()))
-            return FalseSym;
-    return TrueSym;
+            return FalseBool;
+    return TrueBool;
 }
 
 Cell proc_less_equal(const Cells & c)
@@ -71,12 +71,12 @@ Cell proc_less_equal(const Cells & c)
     long n(atol(c[0].GetVal().c_str()));
     for (Cellit i = c.begin()+1; i != c.end(); ++i)
         if (n > atol(i->GetVal().c_str()))
-            return FalseSym;
-    return TrueSym;
+            return FalseBool;
+    return TrueBool;
 }
 
 Cell proc_length(const Cells & c) { return Cell(Number, str(c[0].GetList().size())); }
-Cell proc_nullp(const Cells & c)  { return c[0].GetList().empty() ? TrueSym : FalseSym; }
+Cell proc_nullp(const Cells & c)  { return c[0].GetList().empty() ? TrueBool : FalseBool; }
 Cell proc_car(const Cells & c)    { return c[0].GetList()[0]; }
 
 Cell proc_cdr(const Cells & c)
@@ -113,7 +113,8 @@ Cell proc_list(const Cells & c)
 // define the bare minimum set of primintives necessary to pass the unit tests
 void add_globals(Env & env)
 {
-    env["Nil"] = Nil;   env["#f"] = FalseSym;  env["#t"] = TrueSym;
+  std::cout << "Adding globals" << std::endl;
+    env["Nil"] = Nil;   env["#f"] = FalseBool;  env["#t"] = TrueBool;
     env["append"] = Cell(&proc_append);   env["car"]  = Cell(&proc_car);
     env["cdr"]    = Cell(&proc_cdr);      env["cons"] = Cell(&proc_cons);
     env["length"] = Cell(&proc_length);   env["list"] = Cell(&proc_list);
@@ -128,57 +129,60 @@ void add_globals(Env & env)
 
 Cell eval(Cell x, Env * env)
 {
-    if (x.GetType() == Symbol)
-        return env->find(x.GetVal())[x.GetVal()];
-    if (x.GetType() == Number)
-        return x;
-    if (x.GetType() == String)
-        return x;
-    if (x.GetList().empty())
-        return Nil;
-    if (x.GetList()[0].GetType() == Symbol) {
-        if (x.GetList()[0].GetVal() == "quote")       // (quote exp)
-            return x.GetList()[1];
-        if (x.GetList()[0].GetVal() == "if")          // (if test conseq [alt])
-            return eval(eval(x.GetList()[1], env).GetVal() == "#f" ? (x.GetList().size() < 4 ? Nil : x.GetList()[3]) : x.GetList()[2], env);
-        if (x.GetList()[0].GetVal() == "set!")        // (set! var exp)
-            return env->find(x.GetList()[1].GetVal())[x.GetList()[1].GetVal()] = eval(x.GetList()[2], env);
-        if (x.GetList()[0].GetVal() == "define")      // (define var exp)
-            return (*env)[x.GetList()[1].GetVal()] = eval(x.GetList()[2], env);
-        if (x.GetList()[0].GetVal() == "lambda") {    // (lambda (var*) exp)
-            x.SetType(Lambda);
-            // keep a reference to the Env that exists now (when the
-            // lambda is being defined) because that's the outer Env
-            // we'll need to use when the lambda is executed
-            x.SetEnv(env);
-            return x;
-        }
-        if (x.GetList()[0].GetVal() == "begin") {     // (begin exp*)
-            for (size_t i = 1; i < x.GetList().size() - 1; ++i)
-                eval(x.GetList()[i], env);
-            return eval(x.GetList()[x.GetList().size() - 1], env);
-        }
-    }
-                                            // (proc exp*)
-    Cell proc(eval(x.GetList()[0], env));
-    Cells exps;
-    for (Cell::iter exp = x.GetList().begin() + 1; exp != x.GetList().end(); ++exp)
-        exps.push_back(eval(*exp, env));
-    if (proc.GetType() == Lambda) {
-        // Create an Env for the execution of this lambda function
-        // where the outer Env is the one that existed* at the time
-        // the lambda was defined and the new inner associations are the
-        // parameter names with the given arguments.
-        // *Although the environmet existed at the time the lambda was defined
-        // it wasn't necessarily complete - it may have subsequently had
-        // more symbols defined in that Env.
-        return eval(/*body*/proc.GetList()[2], new Env(/*parms*/proc.GetList()[1].GetList(), /*args*/exps, proc.GetEnv()));
-    }
-    else if (proc.GetType() == Proc)
-        return proc.GetProc()(exps);
+  if (x.GetType() == Symbol)
+    return env->find(x.GetVal())[x.GetVal()];
+  if (x.GetType() == Number)
+    return x;
+  if (x.GetType() == String)
+    return x;
+  if (x.GetType() == Boolean)
+    return x;
+  if (x.GetList().empty())
+    return Nil;
 
-    std::cout << "not a function\n";
-    exit(1);
+  if (x.GetList()[0].GetType() == Symbol) {
+    if (x.GetList()[0].GetVal() == "quote")       // (quote exp)
+      return x.GetList()[1];
+    if (x.GetList()[0].GetVal() == "if")          // (if test conseq [alt])
+      return eval(! eval(x.GetList()[1], env).GetBoolVal() ? (x.GetList().size() < 4 ? Nil : x.GetList()[3]) : x.GetList()[2], env);
+    if (x.GetList()[0].GetVal() == "set!")        // (set! var exp)
+      return env->find(x.GetList()[1].GetVal())[x.GetList()[1].GetVal()] = eval(x.GetList()[2], env);
+    if (x.GetList()[0].GetVal() == "define")      // (define var exp)
+      return (*env)[x.GetList()[1].GetVal()] = eval(x.GetList()[2], env);
+    if (x.GetList()[0].GetVal() == "lambda") {    // (lambda (var*) exp)
+      x.SetType(Lambda);
+      // keep a reference to the Env that exists now (when the
+      // lambda is being defined) because that's the outer Env
+      // we'll need to use when the lambda is executed
+      x.SetEnv(env);
+      return x;
+    }
+    if (x.GetList()[0].GetVal() == "begin") {     // (begin exp*)
+      for (size_t i = 1; i < x.GetList().size() - 1; ++i)
+        eval(x.GetList()[i], env);
+      return eval(x.GetList()[x.GetList().size() - 1], env);
+    }
+  }
+  // (proc exp*)
+  Cell proc(eval(x.GetList()[0], env));
+  Cells exps;
+  for (Cell::iter exp = x.GetList().begin() + 1; exp != x.GetList().end(); ++exp)
+    exps.push_back(eval(*exp, env));
+  if (proc.GetType() == Lambda) {
+    // Create an Env for the execution of this lambda function
+    // where the outer Env is the one that existed* at the time
+    // the lambda was defined and the new inner associations are the
+    // parameter names with the given arguments.
+    // *Although the environmet existed at the time the lambda was defined
+    // it wasn't necessarily complete - it may have subsequently had
+    // more symbols defined in that Env.
+    return eval(/*body*/proc.GetList()[2], new Env(/*parms*/proc.GetList()[1].GetList(), /*args*/exps, proc.GetEnv()));
+  }
+  else if (proc.GetType() == Proc)
+    return proc.GetProc()(exps);
+
+  std::cout << "not a function\n";
+  exit(1);
 }
 
 
@@ -279,7 +283,14 @@ Cell ReadFrom(Tokens& tokens)
   else if (token.m_kind == TokenKind_String)
     return Cell(String, token.m_token);
   else
-    return Cell(Symbol, token.m_token);
+  {
+    if (token.m_token == "#f")
+      return FalseBool;
+    else if (token.m_token == "#t")
+      return TrueBool;
+    else
+      return Cell(Symbol, token.m_token);
+  }
 }
 
 // return the Lisp expression represented by the given string
@@ -296,7 +307,8 @@ void repl(const std::string & prompt, Env * env)
 {
     for (;;) {
         std::cout << prompt;
-        std::string line; std::getline(std::cin, line);
+        std::string line; 
+        std::getline(std::cin, line);
         std::cout << eval(read(line), env).ToString() << '\n';
     }
 }
@@ -313,5 +325,6 @@ Cell Interpreter::Eval(const std::string& str)
 
 void Interpreter::Repl()
 {
+  std::cerr << "Repl evaluation" << std::endl;
   repl(">>", &m_env);
 }
